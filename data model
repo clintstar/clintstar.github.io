@@ -1,1 +1,114 @@
 App Studio Planning Prompt
+
+"Create a multi-vendor agricultural marketplace app connecting African smallholder farmers and cooperatives directly with buyers, eliminating middlemen and improving price transparency. Core features:
+
+1. Farmer & cooperative profiles — individual farmers can list produce independently or join a cooperative to pool listings and meet bulk order minimums.
+2. Product catalog — crop listings with quantity, harvest date, location, quality grade, and price; support both spot listings and pre-harvest offtake contracts buyers can commit to in advance.
+3. Price discovery board — a view of recent sale prices by crop and region, so farmers can see market rates before negotiating.
+4. Order & transaction tracking — order status from confirmation through delivery (harvested → in transit → delivered), with a simple log farmers can update even on low connectivity.
+5. Supply chain traceability — each sale creates a batch/lot record showing farmer or cooperative origin, harvest date, and any quality grading, viewable by the buyer.
+6. Buyer-side discovery and filtering — search/filter by crop, region, quantity, and quality grade.
+7. In-app messaging — direct farmer-buyer communication for negotiation and delivery coordination.
+8. Offline-friendly design — listings and order updates should queue locally and sync when connectivity returns.
+
+Payments should use Pi payment integration for direct farmer-buyer transactions (no lending, credit, or loan features). Prioritize a simple, low-literacy-friendly UI with icon-based navigation and support for local languages.
+
+---
+
+Data model (core entities and relationships)
+
+User
+- user_id
+- name
+- phone/pi_id
+- role (farmer / cooperative_admin / buyer)
+- region
+- language
+- kyc_status
+
+Cooperative
+- coop_id
+- name
+- region
+- lead_user_id (FK → User)
+- Members: many-to-many join table coop_members (coop_id, user_id)
+
+Farm/Listing Source
+- source_id
+- owner_id (FK → User, the individual farmer)
+- coop_id (nullable FK → Cooperative, if listing under a coop)
+- A listing can belong to either a solo farmer or a cooperative — this field decides which
+
+Listing
+- listing_id
+- source_id (FK)
+- crop_type
+- quantity
+- unit
+- quality_grade
+- harvest_date
+- price_per_unit
+- listing_type (spot / pre-harvest offtake)
+- status (active / sold / expired)
+
+Offtake Contract (for pre-harvest commitments)
+- contract_id
+- listing_id (FK)
+- buyer_id (FK → User)
+- agreed_quantity
+- agreed_price
+- expected_delivery_date
+- status (pending / fulfilled / cancelled)
+
+Order
+- order_id
+- listing_id (FK)
+- buyer_id (FK → User)
+- seller_source_id (FK → Farm/Listing Source)
+- quantity
+- total_price
+- status (confirmed / harvested / in_transit / delivered)
+- created_at
+- updated_at
+- status changes are what drives your order-tracking UI
+
+Traceability Record (batch/lot)
+- batch_id
+- order_id (FK)
+- source_id (FK)
+- harvest_date
+- quality_grade_at_pickup
+- graded_by (nullable — inspector/buyer user_id)
+- notes
+- One batch per order fulfillment; this is what the buyer sees as provenance
+
+Price History (for the price discovery board)
+- price_record_id
+- crop_type
+- region
+- price_per_unit
+- date
+- source (derived from completed Order records)
+- Populated automatically each time an Order is marked delivered — no separate manual entry needed
+
+Message
+- message_id
+- order_id or listing_id (FK, context)
+- sender_id
+- receiver_id
+- content
+- timestamp
+
+Payment Transaction
+- tx_id
+- order_id (FK)
+- payer_id
+- payee_id
+- amount
+- pi_tx_reference
+- status (pending / completed / failed)
+
+Notes / Implementation considerations
+- Offline queuing: Listing changes, order updates, and messages should be queued locally with conflict resolution on sync.
+- Low-literacy UI: Use icons, short text, and local language translations.
+- Pi payments: store pi_id on User and link Payment Transaction to Pi tx references. No credit/loan records.
