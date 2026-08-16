@@ -23,27 +23,32 @@
 
       try {
         statusEl.textContent = 'Initializing Pi SDK...';
+        // Ensure Pi.init is awaited as a promise
         await Pi.init({ version: "2.0" });
 
         statusEl.textContent = 'Authenticating with Pi...';
+        // Use the "username" scope
         const authResult = await Pi.authenticate(['username'], onIncompletePaymentFound);
-        
-        statusEl.textContent = 'Validating token with Pi servers...';
-        
-        // Directly validate the access token against Pi's API to bypass missing backend server
-        const piResponse = await fetch('https://api.minepi.com/v2/me', {
-          method: 'GET',
+
+        statusEl.textContent = 'Sending token to backend for validation...';
+
+        // Send the access token to the backend for validation and session establishment
+        const resp = await fetch('/api/auth/pi', {
+          method: 'POST',
           headers: {
-            'Authorization': `Bearer ${authResult.accessToken}`
-          }
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ accessToken: authResult.accessToken })
         });
 
-        if (!piResponse.ok) {
-          throw new Error('Failed to verify token with Pi network');
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err && err.error ? err.error : 'Server failed to validate token with Pi');
         }
 
-        const userData = await piResponse.json();
-        statusEl.textContent = `Welcome, ${userData.username}! Authentication successful.`;
+        const sessionData = await resp.json();
+
+        statusEl.textContent = `Welcome, ${sessionData.user.username}! Authentication successful.`;
         signinBtn.style.display = 'none';
 
       } catch (error) {
@@ -58,6 +63,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+      // Trigger authentication automatically when the app loads
       authenticatePi();
     });
   </script>
